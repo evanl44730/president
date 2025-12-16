@@ -55,31 +55,54 @@ body {
 }
 
 /* Style des cartes (Images) */
+/* Style des cartes (Images) */
 .card {
-    width: 100px;  /* Ajuste selon la taille de tes images */
-    height: 145px; /* Ratio standard environ 1.45 */
+    width: 100px;
+    height: 145px;
     border-radius: 8px;
     box-shadow: 2px 2px 5px rgba(0,0,0,0.3);
-    margin-left: -40px; /* Chevauchement des cartes en main */
-    transition: transform 0.2s;
+    margin-left: -40px; /* Chevauchement */
+    transition: transform 0.2s, filter 0.2s; /* Animation fluide */
     cursor: pointer;
-    background-color: white; /* Au cas où l'image charge mal */
+    background-color: white;
+    
+    /* Par défaut, les cartes sont au "niveau 1" */
+    position: relative;
+    z-index: 5; 
 }
 
 /* La première carte ne doit pas être décalée */
 .card:first-child { margin-left: 0; }
 
-/* Effet au survol (la carte monte) */
+/* Effet au survol (la carte monte et passe devant tout le monde) */
 .card:hover {
     transform: translateY(-20px);
-    z-index: 10; /* Passe au dessus */
+    z-index: 100 !important; /* Passe au dessus de tout, même des jouables */
 }
 
-/* Carte sélectionnée (pour jouer) */
+/* Carte sélectionnée */
 .card.selected {
     transform: translateY(-30px);
     border: 3px solid #ffcc00;
-    z-index: 100;
+    z-index: 100 !important;
+}
+
+/* --- NOUVEAU : Carte désactivée (Injouable) --- */
+.card.disabled {
+    filter: grayscale(100%) brightness(60%); /* Gris et sombre */
+    cursor: not-allowed;
+    
+    /* On la pousse en arrière-plan */
+    z-index: 1; 
+    
+    /* Optionnel : On la réduit légèrement pour accentuer l'effet de profondeur */
+    transform: scale(0.92) translateY(5px); 
+}
+
+/* Important : Si on survole une carte grisée, elle ne doit pas bouger */
+.card.disabled:hover {
+    transform: scale(0.92) translateY(5px); /* Reste en place */
+    z-index: 1; /* Reste derrière */
 }
 
 /* Boutons */

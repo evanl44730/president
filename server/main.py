@@ -15,20 +15,31 @@ def broadcast_player_list():
     sio.emit('update_player_list', {'players': usernames})
 
 def broadcast_game_state():
-    """Envoie l'état du jeu (comme avant)"""
     for sid, player in sid_to_player.items():
         table_cards = [str(c) for c in game.current_trick]
         hand_cards = [str(c) for c in player.hand]
+        
+        # --- NOUVEAU : Calcul des cartes jouables ---
+        # On calcule le masque pour ce joueur précis
+        playable_mask = game.get_playable_mask(player)
+        # --------------------------------------------
+
         current_player_name = game.players[game.current_player_index].name
         is_my_turn = (player == game.players[game.current_player_index])
 
         state = {
             "hand": hand_cards,
+            "playable_mask": playable_mask, # On l'ajoute au JSON
             "table": table_cards,
             "current_player": current_player_name,
             "is_my_turn": is_my_turn,
             "message": f"C'est au tour de {current_player_name}"
         }
+        
+        # Info supplémentaire si on est bloqué
+        if is_my_turn and game.forced_rank_active:
+             state["message"] += " (BLOQUÉ : Tu suis ou tu passes !)"
+
         sio.emit('game_state', state, to=sid)
 
 @sio.event

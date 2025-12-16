@@ -311,6 +311,43 @@ class Game:
             if not has_matching_card:
                 print(f"Auto-pass : {player.name} n'a pas de {self.current_trick[0].rank}")
                 self._pass_turn()
+    
+    def get_playable_mask(self, player):
+        """
+        Retourne une liste de booléens indiquant si chaque carte de la main est jouable.
+        Prend en compte : Valeur > Table, Règle du 2, Ou Rien.
+        """
+        mask = []
+        
+        # S'il n'y a rien sur la table, tout est jouable
+        if not self.current_trick:
+            return [True] * len(player.hand)
+
+        table_val = self.current_trick[0].value
+        table_rank = self.current_trick[0].rank
+
+        for card in player.hand:
+            is_playable = False
+            
+            # 1. Si "Ou Rien" est actif
+            if self.forced_rank_active:
+                # On ne peut jouer QUE la même valeur (même le 2 est bloqué s'il n'est pas la valeur demandée)
+                if card.rank == table_rank:
+                    is_playable = True
+            
+            # 2. Sinon (Jeu normal)
+            else:
+                # Règle du 2 (Bombe) : Toujours jouable (sauf si bloque Ou Rien, géré au dessus)
+                if card.rank == '2':
+                    is_playable = True
+                
+                # Règle Valeur : Doit être >= Table
+                elif card.value >= table_val:
+                    is_playable = True
+            
+            mask.append(is_playable)
+            
+        return mask
 
 
  

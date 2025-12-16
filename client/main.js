@@ -140,7 +140,7 @@ socket.on('game_state', (state) => {
     console.log("État du jeu reçu :", state);
 
     // 1. Mettre à jour ma main
-    renderHand(state.hand);
+    renderHand(state.hand, state.playable_mask, state.is_my_turn);
 
     // 2. Mettre à jour la table (cartes posées)
     renderTable(state.table);
@@ -168,18 +168,29 @@ socket.on('game_state', (state) => {
 
 // --- C. Fonctions d'affichage ---
 
-function renderHand(cardsCodes) {
-    myHandDiv.innerHTML = ""; // On efface l'ancienne main
-    selectedCards.clear();    // On réinitialise la sélection à chaque tour pour éviter les bugs
+function renderHand(cardsCodes, playableMask, isMyTurn) {
+    myHandDiv.innerHTML = ""; 
+    selectedCards.clear();    
 
     cardsCodes.forEach((code, index) => {
         const img = document.createElement('img');
         img.src = `assets/${getCardFileName(code)}`;
         img.className = 'card';
-        img.alt = code;
         
-        // Gestion du clic sur une carte
-        img.addEventListener('click', () => toggleCardSelection(img, code));
+        // --- LOGIQUE D'AFFICHAGE CONDITIONNEL ---
+        
+        // On grise SEULEMENT si :
+        // 1. C'est mon tour (isMyTurn est true)
+        // 2. Le masque existe
+        // 3. La carte est marquée "False" (injouable) dans le masque
+        const shouldDisable = isMyTurn && playableMask && playableMask[index] === false;
+
+        if (shouldDisable) {
+            img.classList.add('disabled');
+        } else {
+            // Si la carte n'est pas disabled, on peut cliquer dessus
+            img.addEventListener('click', () => toggleCardSelection(img, code));
+        }
         
         myHandDiv.appendChild(img);
     });
