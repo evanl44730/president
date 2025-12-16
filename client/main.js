@@ -23,6 +23,7 @@ const tableArea = document.getElementById('table-area');
 const statusMsg = document.getElementById('status-msg');
 const btnPlay = document.getElementById('btn-play');
 const btnPass = document.getElementById('btn-pass');
+const btnExchange = document.getElementById('btn-exchange');
 
 // Variables d'état
 let selectedCards = new Set(); // Stocke les codes des cartes sélectionnées (ex: "3H", "10D")
@@ -146,7 +147,32 @@ socket.on('game_state', (state) => {
     renderTable(state.table);
 
     // 3. Mettre à jour les messages d'info
-    statusMsg.innerText = state.message;
+    statusMsg.innerHTML = `<strong>${state.message}</strong>`;
+
+    const roleDisplay = document.getElementById('my-role-display');
+    if (roleDisplay) {
+        roleDisplay.innerText = state.my_role;
+    } else {
+        // Si l'élément n'existe pas, on l'affiche dans la console ou le titre
+        document.title = `(${state.my_role}) Le Président`;
+    }
+
+    if (state.is_exchange) {
+        // --- PHASE D'ÉCHANGE ---
+        btnPlay.classList.add('hidden');
+        btnPass.classList.add('hidden');
+        
+        // Si c'est à moi de rendre des cartes (exchange_info présent)
+        if (state.exchange_info) {
+            btnExchange.classList.remove('hidden');
+            btnExchange.innerText = `RENDRE ${state.exchange_info.count} CARTES`;
+            statusMsg.style.color = "#ff5722"; // Orange
+        } else {
+            btnExchange.classList.add('hidden');
+            statusMsg.style.color = "#ccc";
+        }
+        
+    }else{
 
     btnPlay.disabled = false; 
     btnPass.disabled = !state.is_my_turn;
@@ -164,6 +190,18 @@ socket.on('game_state', (state) => {
         // On ne peut PAS passer si ce n'est pas notre tour
         btnPass.disabled = true; 
     }
+}});
+
+btnExchange.addEventListener('click', () => {
+    // On réutilise la sélection de cartes existante
+    if (selectedCards.size === 0) {
+        alert("Sélectionnez les cartes à rendre !");
+        return;
+    }
+    
+    // On envoie un événement différent
+    const cardsArray = Array.from(selectedCards);
+    socket.emit('give_cards_back', { cards: cardsArray });
 });
 
 // --- C. Fonctions d'affichage ---

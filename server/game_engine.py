@@ -96,22 +96,107 @@ class Game:
         self.players.append(player)
 
     def start_game(self):
-        """Lance la partie, mélange et distribue"""
+        """Lance une partie (ou une nouvelle manche)."""
+        # 1. On mélange et distribue
         self.deck.shuffle()
         hands = self.deck.deal(len(self.players))
-        self.winners = []
+        
+        # Reset des états de jeu
         self.current_trick = []
         self.trick_owner = None
-        self.rank_counter = 0 # Reset du compteur
-        self.forced_rank_active = False # Reset
-        
+        self.rank_counter = 0
+        self.forced_rank_active = False
+        self.winners = [] # On vide le classement de la manche précédente
+
+        # 2. Distribution
         for i, player in enumerate(self.players):
             player.hand = []
             player.has_finished = False
             player.add_cards(hands[i])
+
+        # 3. Gestion des Échanges (S'il y a des rôles définis)
+        # On vérifie si un Président existe (donc pas la toute première partie)
+        has_roles = any(p.role.startswith("Président") for p in self.players)
         
-        # Pour le MVP, le joueur 0 commence toujours (ou celui avec 3 de coeur en V2)
-        self.current_player_index = 0
+        if has_roles:
+            self.state = "EXCHANGE" # Nouvelle variable d'état
+            self.pending_exchanges = {} # Pour stocker qui doit rendre des cartes à qui
+            self._apply_forced_exchanges()
+        else:
+            self.state = "PLAYING"
+            # Si pas de rôles, c'est le joueur 0 qui commence (ou aléatoire)
+            self.current_player_index = 0
+
+    def _apply_forced_exchanges(self):
+        """
+        Applique l'échange OBLIGATOIRE (Les nuls donnent leurs meilleures cartes).
+        """
+        # Identifier les rôles
+        pres = next((p for p in self.players if p.role == "Président 👑"), None)
+        tdc = next((p for p in self.players if p.role == "Trou du Cul 💩"), None)
+        
+        vp = next((p for p in self.players if p.role == "Vice-Président 🎖️"), None)
+        vtdc = next((p for p in self.players if p.role == "Vice-Trou du Cul 🧹"), None)
+
+        # Règle 1 : TdC donne 2 meilleures cartes au Président
+        if pres and tdc:
+            # On trie la main (les meilleures sont à la fin)
+            # Rappel: Card implémente __lt__ donc sort() marche (3..As..2)
+            best_cards = tdc.hand[-2:] # Les 2 dernières
+            
+            # Transfert
+            tdc.remove_cards(best_cards)
+            pres.add_cards(best_cards)
+            
+            # On note que le Président doit rendre 2 cartes au TdC
+            self.pending_exchanges[pres.name] = {"target": tdc, "count": 2}
+            print(f"Échange auto : {tdc.name} donne {best_cards} à {pres.name}")
+
+        # Règle 2 : Vice-TdC donne 1 meilleure carte au Vice-Président (si 5+ joueurs)
+        if vp and vtdc:
+            best_card = vtdc.hand[-1:] # La dernière (liste de 1 élément)
+            
+            vtdc.remove_cards(best_card)
+            vp.add_cards(best_card)
+            
+            self.pending_exchanges[vp.name] = {"target": vtdc, "count": 1}
+            print(f"Échange auto : {vtdc.name} donne {best_card} à {vp.name}")
+            
+        # Le premier joueur à jouer sera le TdC (règle classique : le TdC commence)
+        # Ou le Président selon les variantes. Ici on va dire que le TdC commence pour se refaire.
+        if tdc:
+            self.current_player_index = self.players.index(tdc)
+
+    def resolve_manual_exchange(self, player, cards):
+        """
+        Le Président/VP choisit les cartes à rendre.
+        """
+        if self.state != "EXCHANGE":
+            return False, "Ce n'est pas le moment des échanges."
+
+        if player.name not in self.pending_exchanges:
+            return False, "Vous n'avez pas d'échange à faire."
+
+        exchange_info = self.pending_exchanges[player.name]
+        target_player = exchange_info["target"]
+        count_needed = exchange_info["count"]
+
+        if len(cards) != count_needed:
+            return False, f"Vous devez choisir exactement {count_needed} cartes."
+
+        # Transfert
+        player.remove_cards(cards)
+        target_player.add_cards(cards)
+        
+        # On supprime l'échange de la liste d'attente
+        del self.pending_exchanges[player.name]
+        
+        # Si tous les échanges sont faits, on lance le jeu
+        if not self.pending_exchanges:
+            self.state = "PLAYING"
+            return True, "Échange terminé ! La partie commence."
+        
+        return True, "Cartes envoyées. En attente des autres..."
 
     def play_move(self, player_index, cards):
         """
@@ -199,6 +284,17 @@ class Game:
         if not player.hand:
             player.has_finished = True
             self.winners.append(player)
+            
+            if len(self.winners) == 1:
+                self.current_trick = []
+                self.trick_owner = None
+                self.rank_counter = 0
+                self.forced_rank_active = False # On annule toute contrainte "Ou rien"
+                
+                # On passe la main au joueur suivant
+                self._next_player()
+                
+                return True, f"👑 {player.name} a fini ! La table est vidée pour le suivant."
 
         self.forced_rank_active = set_next_forced
         self._next_player()
@@ -206,6 +302,19 @@ class Game:
         msg = "Coup joué"
         if self.forced_rank_active:
             msg += " (Le prochain joueur est bloqué !)"
+        
+        active_players = [p for p in self.players if not p.has_finished]
+        
+        if len(active_players) <= 1:
+            # Le dernier joueur a perdu
+            if active_players:
+                last_player = active_players[0]
+                self.winners.append(last_player) # On l'ajoute en dernier
+            
+            # CALCUL DES RÔLES
+            self.assign_roles()
+            
+            return True, "Manche terminée ! Les rôles ont été attribués."
             
         return True, msg
 
@@ -314,40 +423,105 @@ class Game:
     
     def get_playable_mask(self, player):
         """
-        Retourne une liste de booléens indiquant si chaque carte de la main est jouable.
-        Prend en compte : Valeur > Table, Règle du 2, Ou Rien.
+        Génère le masque de cartes grisées.
+        Correction : Le 2 doit aussi respecter la quantité demandée par la table.
         """
         mask = []
         
-        # S'il n'y a rien sur la table, tout est jouable
         if not self.current_trick:
             return [True] * len(player.hand)
 
         table_val = self.current_trick[0].value
         table_rank = self.current_trick[0].rank
+        table_qty = len(self.current_trick)
 
+        # 1. Compter les exemplaires
+        hand_counts = {}
+        for c in player.hand:
+            hand_counts[c.rank] = hand_counts.get(c.rank, 0) + 1
+
+        # 2. Construire le masque
         for card in player.hand:
             is_playable = False
-            
-            # 1. Si "Ou Rien" est actif
+            my_qty = hand_counts[card.rank]
+
+            # --- A. Mode "Ou Rien" Actif ---
             if self.forced_rank_active:
-                # On ne peut jouer QUE la même valeur (même le 2 est bloqué s'il n'est pas la valeur demandée)
                 if card.rank == table_rank:
-                    is_playable = True
-            
-            # 2. Sinon (Jeu normal)
+                    can_match = (my_qty >= table_qty)
+                    needed_for_square = 4 - self.rank_counter
+                    can_complete_square = (needed_for_square <= my_qty) and (needed_for_square >= table_qty)
+                    
+                    if can_match or can_complete_square:
+                        is_playable = True
+
+            # --- B. Jeu Normal ---
             else:
-                # Règle du 2 (Bombe) : Toujours jouable (sauf si bloque Ou Rien, géré au dessus)
+                # 1. La Bombe (2)
                 if card.rank == '2':
-                    is_playable = True
+                    # CORRECTION ICI :
+                    # Même pour un 2, il faut pouvoir fournir le nombre de cartes demandé.
+                    # Ex: Table = 2 Rois -> Il faut avoir au moins 2 Deux.
+                    if my_qty >= table_qty:
+                        is_playable = True
                 
-                # Règle Valeur : Doit être >= Table
-                elif card.value >= table_val:
-                    is_playable = True
+                # 2. Même valeur (pour empiler ou couper)
+                elif card.value == table_val:
+                    can_match = (my_qty >= table_qty)
+                    needed_for_square = 4 - self.rank_counter
+                    can_complete_square = (needed_for_square <= my_qty) and (needed_for_square >= table_qty)
+                    
+                    if can_match or can_complete_square:
+                        is_playable = True
+                
+                # 3. Valeur supérieure
+                elif card.value > table_val:
+                    if my_qty >= table_qty:
+                        is_playable = True
             
             mask.append(is_playable)
             
         return mask
+    
+    def assign_roles(self):
+        """
+        Attribue les rôles selon le classement (self.winners).
+        3 joueurs : Pres, Neutre, TdC
+        4 joueurs : Pres, Neutre, Neutre, TdC
+        5 joueurs : Pres, Vice-Pres, Neutre, Vice-TdC, TdC
+        """
+        count = len(self.players)
+        ranking = self.winners
+        
+        # Sécurité : si la liste n'est pas complète (bug), on ne fait rien
+        if len(ranking) != count:
+            return
+
+        # 1. Reset tout le monde à "Neutre" par défaut
+        for p in self.players:
+            p.role = "Neutre"
+
+        # 2. Le Premier est Président, le Dernier est Trou du Cul (Valable pour 3+)
+        ranking[0].role = "Président 👑"
+        ranking[-1].role = "Trou du Cul 💩"
+
+        # 3. Gestion spécifique selon le nombre de joueurs
+        if count == 3:
+            # [Pres, Neutre, TdC] -> Déjà fait par le code ci-dessus
+            pass
+            
+        elif count == 4:
+            # [Pres, Neutre, Neutre, TdC] -> Déjà fait
+            pass
+            
+        elif count >= 5:
+            # [Pres, VP, ...Neutres..., Vice-TdC, TdC]
+            ranking[1].role = "Vice-Président 🎖️"
+            ranking[-2].role = "Vice-Trou du Cul 🧹"
+
+        print("--- RÔLES ATTRIBUÉS ---")
+        for p in ranking:
+            print(f"{p.name} : {p.role}")
 
 
  

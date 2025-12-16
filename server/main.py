@@ -9,6 +9,27 @@ app = socketio.WSGIApp(sio)
 game = Game()
 sid_to_player = {}
 
+@sio.on('give_cards_back')
+def handle_give_cards(sid, data):
+    player = sid_to_player.get(sid)
+    if not player: return
+
+    cards_codes = data.get('cards', [])
+    cards_obj = []
+    for code in cards_codes:
+        rank = code[:-1]
+        suit = code[-1]
+        cards_obj.append(Card(rank, suit))
+        
+    success, msg = game.resolve_manual_exchange(player, cards_obj)
+    
+    if success:
+        sio.emit('notification', {'message': "Cartes données !"}, to=sid)
+        # On renvoie l'état à tout le monde (pour mettre à jour les mains et lancer le jeu si fini)
+        broadcast_game_state()
+    else:
+        sio.emit('notification', {'message': f"Erreur: {msg}"}, to=sid)
+
 def broadcast_player_list():
     """Envoie la liste des pseudos connectés à tout le monde (pour le lobby)"""
     usernames = [p.name for p in game.players]
@@ -16,29 +37,48 @@ def broadcast_player_list():
 
 def broadcast_game_state():
     for sid, player in sid_to_player.items():
-        table_cards = [str(c) for c in game.current_trick]
+        # ... (calcul hand_cards, table_cards...)
         hand_cards = [str(c) for c in player.hand]
+        table_cards = [str(c) for c in game.current_trick]
         
-        # --- NOUVEAU : Calcul des cartes jouables ---
-        # On calcule le masque pour ce joueur précis
-        playable_mask = game.get_playable_mask(player)
-        # --------------------------------------------
+        # --- LOGIQUE ÉCHANGE ---
+        is_exchange_phase = (getattr(game, 'state', 'PLAYING') == "EXCHANGE")
+        exchange_data = None
+        
+        if is_exchange_phase:
+            # Si je dois rendre des cartes
+            if player.name in getattr(game, 'pending_exchanges', {}):
+                info = game.pending_exchanges[player.name]
+                exchange_data = {
+                    "target": info["target"].name,
+                    "count": info["count"]
+                }
+        # -----------------------
 
-        current_player_name = game.players[game.current_player_index].name
-        is_my_turn = (player == game.players[game.current_player_index])
+        # Masque (Inutile pendant l'échange, tout est clickable pour choisir)
+        playable_mask = game.get_playable_mask(player) if not is_exchange_phase else [True]*len(player.hand)
+        
+        # Calcul du message
+        if is_exchange_phase:
+            if exchange_data:
+                msg = f"ÉCHANGE : Tu dois rendre {exchange_data['count']} cartes à {exchange_data['target']}."
+            else:
+                msg = "ÉCHANGE : En attente du Président/VP..."
+        else:
+            current_player_name = game.players[game.current_player_index].name
+            msg = f"Tour de {current_player_name}"
 
         state = {
             "hand": hand_cards,
-            "playable_mask": playable_mask, # On l'ajoute au JSON
+            "playable_mask": playable_mask,
             "table": table_cards,
-            "current_player": current_player_name,
-            "is_my_turn": is_my_turn,
-            "message": f"C'est au tour de {current_player_name}"
+            "is_my_turn": (player == game.players[game.current_player_index]) if not is_exchange_phase else False,
+            "my_role": player.role,
+            "message": msg,
+            # NOUVEAU
+            "is_exchange": is_exchange_phase,
+            "exchange_info": exchange_data
         }
-        
-        # Info supplémentaire si on est bloqué
-        if is_my_turn and game.forced_rank_active:
-             state["message"] += " (BLOQUÉ : Tu suis ou tu passes !)"
 
         sio.emit('game_state', state, to=sid)
 

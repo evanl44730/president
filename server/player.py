@@ -8,6 +8,7 @@ class Player:
         self.hand = []  # Liste d'objets Card
         self.has_finished = False
         self.finish_rank = None
+        self.role = "Neutre"
 
     def add_cards(self, cards):
         """Ajoute des cartes et trie la main automatiquement"""
