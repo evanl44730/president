@@ -94,6 +94,40 @@ class Game:
 
     def add_player(self, player):
         self.players.append(player)
+    
+    def remove_player(self, sid):
+        """Retire un joueur du jeu via son ID de session."""
+        player_to_remove = None
+        for p in self.players:
+            if p.sid == sid:
+                player_to_remove = p
+                break
+        
+        if player_to_remove:
+            self.players.remove(player_to_remove)
+            
+            # Si c'était au tour de ce joueur, on passe au suivant pour pas bloquer
+            if self.state == "PLAYING" and self.current_player_index >= len(self.players):
+                self.current_player_index = 0
+            
+            return player_to_remove
+        return None
+
+    def reset_to_lobby(self):
+        """Annule la partie en cours et remet tout le monde en attente."""
+        self.state = "WAITING"
+        self.current_trick = []
+        self.trick_owner = None
+        self.rank_counter = 0
+        self.winners = []
+        self.pending_exchanges = {}
+        
+        # On vide les mains des joueurs restants
+        for p in self.players:
+            p.hand = []
+            p.has_finished = False
+            # On garde les rôles ? Discutable. Pour l'instant on reset pas les rôles
+            # pour ne pas frustrer, mais on pourrait : p.role = "Neutre"
 
     def start_game(self):
         """Lance une nouvelle manche avec gestion des rôles persistants."""
@@ -434,61 +468,80 @@ class Game:
     
     def get_playable_mask(self, player):
         """
-        Génère le masque de cartes grisées.
-        Correction : Le 2 doit aussi respecter la quantité demandée par la table.
+        Génère le masque.
+        Gère intelligemment le "Tour" :
+        - À mon tour : Je peux jouer tout ce qui est valide.
+        - Pas à mon tour : Je ne peux jouer QUE si ça coupe (Carré).
         """
         mask = []
         
+        # Est-ce que c'est à ce joueur de jouer ?
+        is_turn = (player == self.players[self.current_player_index])
+
+        # Analyse de la table
         if not self.current_trick:
-            return [True] * len(player.hand)
+            # Table vide : Si c'est mon tour, tout est OK. Sinon, rien.
+            return [is_turn] * len(player.hand)
 
         table_val = self.current_trick[0].value
         table_rank = self.current_trick[0].rank
         table_qty = len(self.current_trick)
 
-        # 1. Compter les exemplaires
+        # Compte des cartes en main
         hand_counts = {}
         for c in player.hand:
             hand_counts[c.rank] = hand_counts.get(c.rank, 0) + 1
 
-        # 2. Construire le masque
         for card in player.hand:
             is_playable = False
             my_qty = hand_counts[card.rank]
 
-            # --- A. Mode "Ou Rien" Actif ---
+            # --- LOGIQUE UNIVERSELLE (Physique du jeu) ---
+            # On calcule d'abord si le coup est techniquement valide
+            
+            valid_move = False
+            is_interception_move = False # Pour savoir si c'est une coupe
+
+            # A. Mode "Ou Rien"
             if self.forced_rank_active:
                 if card.rank == table_rank:
-                    can_match = (my_qty >= table_qty)
-                    needed_for_square = 4 - self.rank_counter
-                    can_complete_square = (needed_for_square <= my_qty) and (needed_for_square >= table_qty)
-                    
-                    if can_match or can_complete_square:
-                        is_playable = True
+                    # 1. Suivre
+                    if my_qty >= table_qty: valid_move = True
+                    # 2. Couper (Compléter carré)
+                    needed = 4 - self.rank_counter
+                    if (needed <= my_qty) and (needed >= table_qty): 
+                        valid_move = True
+                        is_interception_move = True
 
-            # --- B. Jeu Normal ---
+            # B. Jeu Normal
             else:
-                # 1. La Bombe (2)
+                # 1. Bombe (2)
                 if card.rank == '2':
-                    # CORRECTION ICI :
-                    # Même pour un 2, il faut pouvoir fournir le nombre de cartes demandé.
-                    # Ex: Table = 2 Rois -> Il faut avoir au moins 2 Deux.
-                    if my_qty >= table_qty:
-                        is_playable = True
+                    if my_qty >= table_qty: valid_move = True
                 
-                # 2. Même valeur (pour empiler ou couper)
+                # 2. Même valeur
                 elif card.value == table_val:
-                    can_match = (my_qty >= table_qty)
-                    needed_for_square = 4 - self.rank_counter
-                    can_complete_square = (needed_for_square <= my_qty) and (needed_for_square >= table_qty)
+                    if my_qty >= table_qty: valid_move = True
                     
-                    if can_match or can_complete_square:
-                        is_playable = True
+                    # Vérification Coupe (Carré)
+                    needed = 4 - self.rank_counter
+                    if (needed <= my_qty) and (needed >= table_qty):
+                        valid_move = True
+                        is_interception_move = True
                 
                 # 3. Valeur supérieure
                 elif card.value > table_val:
-                    if my_qty >= table_qty:
-                        is_playable = True
+                    if my_qty >= table_qty: valid_move = True
+
+            # --- FILTRAGE SELON LE TOUR ---
+            
+            if is_turn:
+                # Si c'est mon tour, tout coup valide est accepté
+                if valid_move: is_playable = True
+            else:
+                # Si ce N'EST PAS mon tour, seule l'interception (Coupe) est acceptée
+                if valid_move and is_interception_move:
+                    is_playable = True
             
             mask.append(is_playable)
             

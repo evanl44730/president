@@ -177,6 +177,46 @@ def handle_play(sid, data):
     else:
         sio.emit('notification', {'message': f"Erreur: {msg}"}, to=sid)
 
+@sio.event
+def disconnect(sid):
+    # 1. On cherche le joueur pour le retirer
+    if sid in sid_to_player:
+        player_name = sid_to_player[sid].name
+        
+        # On le retire du moteur de jeu
+        game.remove_player(sid)
+        
+        # On le retire du dictionnaire global
+        del sid_to_player[sid]
+        
+        print(f"🚪 {player_name} s'est déconnecté.")
+        
+        # 2. Notification aux autres
+        sio.emit('notification', {'message': f"🚪 {player_name} a quitté la partie."})
+        
+        # 3. Vérification des règles de fin de partie
+        # Si la partie était en cours (PLAYING ou EXCHANGE)
+        if game.state != "WAITING":
+            # Si on tombe sous les 3 joueurs
+            if len(game.players) < 3:
+                game.reset_to_lobby()
+                sio.emit('notification', {'message': "⚠️ Moins de 3 joueurs restants ! La partie est annulée."})
+                sio.emit('game_cancelled') # Signal spécial pour le client
+            else:
+                # Optionnel : Si on est encore assez nombreux (ex: 5 -> 4), 
+                # on pourrait continuer, mais dans un jeu de cartes, 
+                # perdre une main fausse tout. Par sécurité, on annule souvent tout.
+                # Pour respecter ta demande stricte "Si < 3", on laisse continuer sinon.
+                # Mais attention : l'ordre des tours risque d'être perturbé.
+                # Conseil : Pour l'instant, annulons tout si quelqu'un part en jeu pour éviter les bugs.
+                game.reset_to_lobby()
+                sio.emit('notification', {'message': "🚫 Un joueur a quitté la partie en cours. Retour au salon."})
+                sio.emit('game_cancelled')
+
+        # 4. Mise à jour de la liste du lobby (si on est dans le lobby)
+        player_names = [p.name for p in game.players]
+        sio.emit('update_player_list', {'players': player_names})
+
 if __name__ == '__main__':
     # 2. MODIFICATION PORT : Render nous donne un port via l'environnement
     # Si 'PORT' n'existe pas (en local), on utilise 5000

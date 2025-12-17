@@ -103,36 +103,51 @@ socket.on('game_state', (state) => {
 
     // --- LOGIQUE BOUTONS ---
     if (state.is_exchange) {
-        // Mode Échange
-        btnPlay.parentElement.classList.add('hidden'); // Cache Pass/Play
-        exchangeArea.classList.remove('hidden');       // Affiche zone échange
-        
+        // ... (Code échange inchangé) ...
+        btnPlay.parentElement.classList.add('hidden');
+        exchangeArea.classList.remove('hidden');
         if (state.exchange_info) {
             btnExchange.classList.remove('hidden');
             btnExchange.innerText = `RENDRE ${state.exchange_info.count} CARTE(S)`;
             statusMsg.style.color = "#ff4757"; 
-        } else {
-            btnExchange.classList.add('hidden');
-            statusMsg.style.color = "#ccc";
-        }
+        } else { /* ... */ }
+
     } else {
         // Mode Jeu
         btnPlay.parentElement.classList.remove('hidden');
         exchangeArea.classList.add('hidden');
         
+        // Est-ce que j'ai au moins une carte jouable dans ma main ?
+        // (Le masque contient au moins un 'true')
+        const hasPlayableCards = state.playable_mask && state.playable_mask.includes(true);
+
         if (state.is_my_turn) {
-            statusMsg.style.color = "#f1c40f"; // Gold
+            statusMsg.style.color = "#f1c40f"; 
             statusMsg.style.textShadow = "0 0 10px rgba(241, 196, 15, 0.5)";
+            
             btnPlay.disabled = false;
             btnPass.disabled = false;
+            
         } else {
+            // CE N'EST PAS MON TOUR
             statusMsg.style.color = "#fff";
             statusMsg.style.textShadow = "none";
-            btnPlay.disabled = true;
+            
+            // Le bouton PASSER est désactivé (on ne passe pas hors tour)
             btnPass.disabled = true;
+
+            // NOUVEAU : Le bouton JOUER est actif SI j'ai une coupe possible (hasPlayableCards)
+            if (hasPlayableCards) {
+                btnPlay.disabled = false; 
+                btnPlay.innerText = "COUPER !"; // Petit feedback visuel sympa
+                btnPlay.style.background = "linear-gradient(45deg, #ff5722, #f44336)"; // Rouge feu
+            } else {
+                btnPlay.disabled = true;
+                btnPlay.innerText = "JOUER";
+                btnPlay.style.background = ""; // Retour style normal
+            }
         }
-    }
-});
+    }});
 
 function renderHand(cardsCodes, playableMask, isMyTurn, isExchange) {
     myHandDiv.innerHTML = ""; 
@@ -143,10 +158,20 @@ function renderHand(cardsCodes, playableMask, isMyTurn, isExchange) {
         img.src = `assets/${getCardFileName(code)}`;
         img.className = 'card';
         
-        // Logique de grisage (Disabled)
         let shouldDisable = false;
-        if (!isExchange) {
-            shouldDisable = !isMyTurn || (playableMask && playableMask[index] === false);
+
+        if (isExchange) {
+            shouldDisable = false;
+        } else {
+            // CORRECTION ICI :
+            // On ne regarde plus 'isMyTurn'. 
+            // On fait confiance au masque du serveur (playableMask).
+            // Le serveur a déjà mis 'false' partout si ce n'est pas mon tour,
+            // SAUF pour les cartes qui permettent de couper.
+            
+            if (playableMask && playableMask[index] === false) {
+                shouldDisable = true;
+            }
         }
 
         if (shouldDisable) {
