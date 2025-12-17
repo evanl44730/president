@@ -209,6 +209,51 @@ button:disabled {
     font-weight: 600;
 }
 
+/* OPPONENTS AREA */
+#opponents-container {
+    display: flex;
+    justify-content: center;
+    gap: 30px;
+    padding: 10px;
+    width: 100%;
+}
+
+.opponent-profile {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    color: rgba(255,255,255,0.7);
+    transition: all 0.3s ease;
+    padding: 10px;
+    border-radius: 12px;
+    background: rgba(0,0,0,0.2);
+    border: 1px solid transparent;
+}
+
+.opponent-avatar {
+    font-size: 2rem;
+    margin-bottom: 5px;
+    filter: grayscale(0.5);
+    transition: all 0.3s;
+}
+
+.opponent-name {
+    font-weight: 600;
+    font-size: 0.9rem;
+}
+
+.opponent-profile.active-turn {
+    color: white;
+    background: rgba(241, 196, 15, 0.1); /* Gold tint */
+    border: 1px solid var(--gold-color);
+    box-shadow: 0 0 15px rgba(241, 196, 15, 0.4);
+    transform: scale(1.1);
+}
+
+.opponent-profile.active-turn .opponent-avatar {
+    filter: grayscale(0) drop-shadow(0 0 5px var(--gold-color));
+}
+
 /* TABLE AREA */
 #table-area {
     flex-grow: 1;
@@ -240,9 +285,11 @@ button:disabled {
 }
 
 #controls {
-    margin-bottom: 15px;
+    margin-bottom: 40px;
     display: flex;
     gap: 15px;
+    z-index: 200;
+    /* Assure que les boutons sont au-dessus si jamais */
 }
 
 #my-hand {
@@ -250,7 +297,8 @@ button:disabled {
     justify-content: center;
     align-items: flex-end;
     height: 160px;
-    padding: 0 20px;
+    padding: 0 40px;
+    /* Plus d'espace latéral */
     max-width: 100%;
     overflow-x: visible;
 }
@@ -276,13 +324,13 @@ button:disabled {
 }
 
 .card:hover {
-    transform: translateY(-25px) scale(1.1);
+    transform: translateY(-15px) scale(1.1);
     z-index: 100 !important;
     box-shadow: 0 10px 20px rgba(0, 0, 0, 0.5);
 }
 
 .card.selected {
-    transform: translateY(-40px) scale(1.1);
+    transform: translateY(-20px) scale(1.1);
     border: 3px solid var(--gold-color);
     box-shadow: 0 0 15px var(--gold-color);
     z-index: 100 !important;

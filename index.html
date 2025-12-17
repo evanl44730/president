@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="fr">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -8,10 +9,11 @@
     <link rel="stylesheet" href="styles.css">
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
 </head>
+
 <body>
 
     <div class="app-container">
-        
+
         <div id="login-screen" class="glass-panel">
             <h1>👑 Le Président</h1>
             <p class="subtitle">Entrez votre pseudo pour rejoindre la table</p>
@@ -26,14 +28,14 @@
             <div class="lobby-content">
                 <div class="player-count">Joueurs connectés : <span id="player-count-num">0</span></div>
                 <ul id="players-list">
-                    </ul>
+                </ul>
             </div>
             <p id="lobby-status">En attente...</p>
             <button id="btn-start-game" class="btn-gold" disabled>LANCER LA PARTIE</button>
         </div>
 
         <div id="game-board" class="hidden">
-            
+
             <div class="top-bar">
                 <div class="role-badge" id="my-role-display">Neutre</div>
                 <div class="game-info">
@@ -42,12 +44,16 @@
                 <div class="room-code">Table #1</div>
             </div>
 
+            <div id="opponents-container">
+                <!-- Les joueurs seront injectés ici par JS -->
+            </div>
+
             <div id="table-area">
                 <div class="empty-table-placeholder">La table est vide</div>
-                </div>
+            </div>
 
             <div class="bottom-area">
-                
+
                 <div id="exchange-area" class="hidden">
                     <button id="btn-exchange" class="btn-danger pulse">RENDRE LES CARTES</button>
                 </div>
@@ -58,7 +64,7 @@
                 </div>
 
                 <div id="my-hand">
-                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -67,4 +73,5 @@
 
     <script src="main.js"></script>
 </body>
+
 </html>

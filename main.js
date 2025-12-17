@@ -20,13 +20,18 @@ const btnPlay = document.getElementById('btn-play');
 const btnPass = document.getElementById('btn-pass');
 const btnExchange = document.getElementById('btn-exchange');
 const exchangeArea = document.getElementById('exchange-area');
+const opponentsContainer = document.getElementById('opponents-container');
 
 let selectedCards = new Set();
+let allPlayers = []; // Stocke la liste des pseudos
+let myLastMove = null; // Track my last played cards
+let myUsername = ""; // Mon pseudo
 
 // --- LOGIN ---
 btnJoin.addEventListener('click', () => {
     const username = usernameInput.value;
     if (username) {
+        myUsername = username; // On stocke le pseudo
         socket.emit('join_game', { username: username });
         loginScreen.classList.add('hidden');
         lobbyScreen.classList.remove('hidden');
@@ -40,6 +45,7 @@ usernameInput.addEventListener("keypress", function (event) {
 // --- LOBBY ---
 socket.on('update_player_list', (data) => {
     const players = data.players;
+    allPlayers = players; // On met à jour la liste globale
     playersListUl.innerHTML = "";
     playerCountSpan.innerText = players.length;
 
@@ -86,8 +92,35 @@ socket.on('game_state', (state) => {
     console.log("State:", state);
 
     // Update UI Elements
+    // Détection Ghost Cards (Pour les 2 ou Carrés qui vident instantanément)
+    let ghostCards = null;
+
+    // Si la table est vide MAIS que je viens de jouer (myLastMove existe),
+    // c'est que mon coup a vidé la table (ex: j'ai mis un 2).
+    // Le serveur renvoie table: [] tout de suite.
+    if (state.table.length === 0 && myLastMove) {
+        // On vérifie si c'est "moi" qui ai vidé ?
+        // On suppose que oui si la réponse arrive juste après mon coup.
+        // On utilisera myLastMove pour l'animation.
+        ghostCards = myLastMove;
+        myLastMove = null; // On consomme le move
+    }
+
+    // TODO: Gérer le cas des ADVERSAIRES (si le serveur envoyait 'last_played')
+    // S'il y a state.last_played et que table est vide, on l'utilise
+    if (state.table.length === 0 && state.last_played && !ghostCards) {
+        ghostCards = state.last_played;
+    }
+
     renderHand(state.hand, state.playable_mask, state.is_my_turn, state.is_exchange);
-    renderTable(state.table);
+    renderTable(state.table, ghostCards);
+
+    // Rendu des adversaires et surbrillance du tour
+    // On essaie de deviner à qui c'est le tour via state.current_player (s'il existe)
+    let activePlayerName = state.current_player;
+    if (state.is_my_turn) activePlayerName = myUsername; // Fallback pour moi-même
+
+    renderOpponents(allPlayers, activePlayerName);
 
     // Status text update
     statusMsg.innerHTML = state.message;
@@ -193,14 +226,33 @@ function renderHand(cardsCodes, playableMask, isMyTurn, isExchange) {
 let tableClearTimeout = null;
 let previousTableSize = 0; // Pour savoir si la table était pleine avant
 
-function renderTable(cardsCodes) {
+function renderTable(cardsCodes, ghostCards = null) {
     // 1. Détection : Est-ce qu'on vient de nettoyer le pli ?
     // Condition : La table devient vide (0) ALORS QU'elle avait des cartes avant (>0)
-    const isClearingTrick = (cardsCodes.length === 0 && previousTableSize > 0);
+    // OU BIEN : On a reçu des "ghostCards" (coup instantané type 2 ou Carré qui vide directement)
+    const isClearingTrick = (cardsCodes.length === 0 && previousTableSize > 0) || (cardsCodes.length === 0 && ghostCards && ghostCards.length > 0);
     previousTableSize = cardsCodes.length; // Mise à jour pour la prochaine fois
 
     // 2. Si on nettoie le pli -> Animation
     if (isClearingTrick) {
+
+        // Cas spécial : Instant Clear (Ghost Cards)
+        // On doit D'ABORD les afficher pour qu'elles puissent s'envoler
+        if (ghostCards && ghostCards.length > 0) {
+            tableArea.innerHTML = ""; // On vide le placeholder éventuel
+            const cluster = document.createElement('div');
+            cluster.style.display = 'flex';
+            cluster.style.justifyContent = 'center';
+
+            ghostCards.forEach(code => {
+                const img = document.createElement('img');
+                img.src = `assets/${getCardFileName(code)}`;
+                img.className = 'card';
+                cluster.appendChild(img);
+            });
+            tableArea.appendChild(cluster);
+        }
+
         const images = tableArea.querySelectorAll('img');
 
         // On applique la classe d'animation à toutes les cartes actuelles
@@ -263,7 +315,9 @@ function toggleCardSelection(imgElement, code) {
 // Events Buttons
 btnPlay.addEventListener('click', () => {
     if (selectedCards.size === 0) return alert("Sélectionnez au moins une carte !");
-    socket.emit('play_cards', { cards: Array.from(selectedCards) });
+    const cardsToPlay = Array.from(selectedCards);
+    myLastMove = cardsToPlay; // On mémorise ce qu'on vient de jouer
+    socket.emit('play_cards', { cards: cardsToPlay });
 });
 
 btnPass.addEventListener('click', () => {
@@ -274,6 +328,34 @@ btnExchange.addEventListener('click', () => {
     if (selectedCards.size === 0) return alert("Sélectionnez les cartes à rendre !");
     socket.emit('give_cards_back', { cards: Array.from(selectedCards) });
 });
+
+function renderOpponents(players, currentPlayerName) {
+    // Si la liste est vide (pas encore reçue), on ne fait rien
+    if (!players || players.length === 0) return;
+
+    opponentsContainer.innerHTML = "";
+
+    players.forEach(name => {
+        // Optionnel : ne pas s'afficher soi-même ? 
+        // L'utilisateur a dit "ajoute les joueurs", souvent on veut aussi voir quand c'est son tour
+        // Mais on a déjà "my-turn-active" sur l'écran. 
+        // Affichons tout le monde pour la clarté.
+
+        const div = document.createElement('div');
+        div.className = 'opponent-profile';
+
+        // Est-ce son tour ?
+        if (currentPlayerName && name === currentPlayerName) {
+            div.classList.add('active-turn');
+        }
+
+        div.innerHTML = `
+            <div class="opponent-avatar">👤</div>
+            <div class="opponent-name">${name}</div>
+        `;
+        opponentsContainer.appendChild(div);
+    });
+}
 
 socket.on('notification', (data) => {
     console.log("Notif:", data.message);
