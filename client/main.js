@@ -1,212 +1,139 @@
-// Connexion au serveur Python (assure-toi que le port 5000 est correct)
 const socket = io('http://localhost:5000');
 
-// --- SÉLECTION DES ÉLÉMENTS DU DOM ---
-
-// Écrans (Vues)
+// DOM Elements
 const loginScreen = document.getElementById('login-screen');
 const lobbyScreen = document.getElementById('lobby-screen');
 const gameBoard = document.getElementById('game-board');
-
-// Éléments Login
 const usernameInput = document.getElementById('username');
 const btnJoin = document.getElementById('btn-join');
-
-// Éléments Lobby
 const playersListUl = document.getElementById('players-list');
 const btnStartGame = document.getElementById('btn-start-game');
 const lobbyStatus = document.getElementById('lobby-status');
+const playerCountSpan = document.getElementById('player-count-num');
 
-// Éléments Jeu
 const myHandDiv = document.getElementById('my-hand');
 const tableArea = document.getElementById('table-area');
 const statusMsg = document.getElementById('status-msg');
+const myRoleDisplay = document.getElementById('my-role-display');
 const btnPlay = document.getElementById('btn-play');
 const btnPass = document.getElementById('btn-pass');
 const btnExchange = document.getElementById('btn-exchange');
+const exchangeArea = document.getElementById('exchange-area');
 
-// Variables d'état
-let selectedCards = new Set(); // Stocke les codes des cartes sélectionnées (ex: "3H", "10D")
+let selectedCards = new Set(); 
 
-
-// ============================================================
-// 1. PHASE DE CONNEXION (LOGIN)
-// ============================================================
-
+// --- LOGIN ---
 btnJoin.addEventListener('click', () => {
     const username = usernameInput.value;
     if (username) {
-        // Envoie la demande de rejoindre au serveur
         socket.emit('join_game', { username: username });
-        
-        // Transition UX : On cache le login, on affiche le lobby
         loginScreen.classList.add('hidden');
         lobbyScreen.classList.remove('hidden');
     }
 });
+// Trigger Login on Enter key
+usernameInput.addEventListener("keypress", function(event) {
+  if (event.key === "Enter") btnJoin.click();
+});
 
-
-// ============================================================
-// 2. PHASE DE LOBBY (SALLE D'ATTENTE)
-// ============================================================
-
-// Mise à jour de la liste des joueurs connectés
+// --- LOBBY ---
 socket.on('update_player_list', (data) => {
     const players = data.players;
-    
-    // Vider la liste actuelle
     playersListUl.innerHTML = "";
+    playerCountSpan.innerText = players.length;
     
-    // Remplir avec les nouveaux noms
     players.forEach(name => {
         const li = document.createElement('li');
         li.innerText = name;
         playersListUl.appendChild(li);
     });
 
-    // Gestion de l'activation du bouton "Lancer"
     if (players.length >= 2) {
         btnStartGame.disabled = false;
-        btnStartGame.style.backgroundColor = "#ffcc00"; // Jaune actif
-        btnStartGame.style.cursor = "pointer";
-        lobbyStatus.innerText = "Prêt à lancer la partie !";
-        lobbyStatus.style.color = "#4CAF50"; // Vert
+        btnStartGame.innerHTML = "LANCER LA PARTIE 🚀";
+        lobbyStatus.innerText = "Prêt à décoller !";
+        lobbyStatus.style.color = "#4CAF50";
     } else {
         btnStartGame.disabled = true;
-        btnStartGame.style.backgroundColor = "#ccc"; // Gris désactivé
-        btnStartGame.style.cursor = "not-allowed";
-        lobbyStatus.innerText = "En attente d'au moins 2 joueurs...";
-        lobbyStatus.style.color = "#FF9800"; // Orange
+        btnStartGame.innerHTML = "EN ATTENTE...";
+        lobbyStatus.innerText = "En attente d'adversaires...";
+        lobbyStatus.style.color = "#ccc";
     }
 });
 
-// Action : Cliquer sur "Lancer la partie"
-btnStartGame.addEventListener('click', () => {
-    socket.emit('start_game_command');
-});
-
-// Réception du signal de démarrage du jeu
+btnStartGame.addEventListener('click', () => socket.emit('start_game_command'));
 socket.on('game_started', () => {
-    // Transition UX : On cache le lobby, on affiche le tapis de jeu
     lobbyScreen.classList.add('hidden');
     gameBoard.classList.remove('hidden');
 });
 
+// --- GAME LOOP ---
 
-// ============================================================
-// 3. PHASE DE JEU (GAME LOOP)
-// ============================================================
-
-// --- A. Fonctions Utilitaires ---
-
-// Convertit le code serveur (ex: "10H") vers le nom de fichier (ex: "10_of_hearts.png")
 function getCardFileName(cardCode) {
-    // Cas particulier du "10" qui fait 2 caractères
-    // Si la carte a 3 caractères (ex "10H"), le rang est les 2 premiers. Sinon c'est le 1er.
     let rankCode, suitCode;
-    
-    if (cardCode.length === 3) {
-        rankCode = cardCode.slice(0, 2); // "10"
-        suitCode = cardCode.slice(2);    // "H"
-    } else {
-        rankCode = cardCode.slice(0, 1); // "K"
-        suitCode = cardCode.slice(1);    // "D"
-    }
+    if (cardCode.length === 3) { rankCode = cardCode.slice(0, 2); suitCode = cardCode.slice(2); } 
+    else { rankCode = cardCode.slice(0, 1); suitCode = cardCode.slice(1); }
 
-    const rankMap = {
-        'J': 'jack',
-        'Q': 'queen',
-        'K': 'king',
-        'A': 'ace'
-        // Les chiffres (3, 4... 10, 2) restent tels quels
-    };
-
-    const suitMap = {
-        'H': 'hearts',
-        'D': 'diamonds',
-        'C': 'clubs',
-        'S': 'spades'
-    };
-
+    const rankMap = { 'J': 'jack', 'Q': 'queen', 'K': 'king', 'A': 'ace' };
+    const suitMap = { 'H': 'hearts', 'D': 'diamonds', 'C': 'clubs', 'S': 'spades' };
     const rankName = rankMap[rankCode] || rankCode; 
     const suitName = suitMap[suitCode];
-
     return `${rankName}_of_${suitName}.png`;
 }
 
-
-// --- B. Gestion de l'état du jeu (Réception du serveur) ---
-
 socket.on('game_state', (state) => {
-    console.log("État du jeu reçu :", state);
+    console.log("State:", state);
 
-    // 1. Mettre à jour ma main
-    renderHand(state.hand, state.playable_mask, state.is_my_turn);
-
-    // 2. Mettre à jour la table (cartes posées)
+    // Update UI Elements
+    renderHand(state.hand, state.playable_mask, state.is_my_turn, state.is_exchange);
     renderTable(state.table);
-
-    // 3. Mettre à jour les messages d'info
-    statusMsg.innerHTML = `<strong>${state.message}</strong>`;
-
-    const roleDisplay = document.getElementById('my-role-display');
-    if (roleDisplay) {
-        roleDisplay.innerText = state.my_role;
-    } else {
-        // Si l'élément n'existe pas, on l'affiche dans la console ou le titre
-        document.title = `(${state.my_role}) Le Président`;
+    
+    // Status text update
+    statusMsg.innerHTML = state.message;
+    
+    // Role update
+    if(state.my_role) {
+        myRoleDisplay.innerText = state.my_role;
+        // Couleur dynamique du badge selon le rôle
+        if(state.my_role.includes("Président")) myRoleDisplay.style.borderColor = "#f1c40f";
+        else if(state.my_role.includes("Trou")) myRoleDisplay.style.borderColor = "#8c7ae6";
+        else myRoleDisplay.style.borderColor = "#fff";
     }
 
+    // --- LOGIQUE BOUTONS ---
     if (state.is_exchange) {
-        // --- PHASE D'ÉCHANGE ---
-        btnPlay.classList.add('hidden');
-        btnPass.classList.add('hidden');
+        // Mode Échange
+        btnPlay.parentElement.classList.add('hidden'); // Cache Pass/Play
+        exchangeArea.classList.remove('hidden');       // Affiche zone échange
         
-        // Si c'est à moi de rendre des cartes (exchange_info présent)
         if (state.exchange_info) {
             btnExchange.classList.remove('hidden');
-            btnExchange.innerText = `RENDRE ${state.exchange_info.count} CARTES`;
-            statusMsg.style.color = "#ff5722"; // Orange
+            btnExchange.innerText = `RENDRE ${state.exchange_info.count} CARTE(S)`;
+            statusMsg.style.color = "#ff4757"; 
         } else {
             btnExchange.classList.add('hidden');
             statusMsg.style.color = "#ccc";
         }
-        
-    }else{
-
-    btnPlay.disabled = false; 
-    btnPass.disabled = !state.is_my_turn;
-    btnPlay.classList.remove('disabled');
-    
-    // 4. Activer/Désactiver les boutons selon si c'est mon tour
-    if (state.is_my_turn) {
-        statusMsg.style.color = "#ffcc00"; 
-        statusMsg.innerText += " (C'est à TOI !)";
-        // On peut passer seulement si c'est notre tour
-        btnPass.disabled = false; 
     } else {
-        statusMsg.style.color = "white";
-        statusMsg.innerText += " (Tu peux couper si tu as les mêmes cartes)";
-        // On ne peut PAS passer si ce n'est pas notre tour
-        btnPass.disabled = true; 
+        // Mode Jeu
+        btnPlay.parentElement.classList.remove('hidden');
+        exchangeArea.classList.add('hidden');
+        
+        if (state.is_my_turn) {
+            statusMsg.style.color = "#f1c40f"; // Gold
+            statusMsg.style.textShadow = "0 0 10px rgba(241, 196, 15, 0.5)";
+            btnPlay.disabled = false;
+            btnPass.disabled = false;
+        } else {
+            statusMsg.style.color = "#fff";
+            statusMsg.style.textShadow = "none";
+            btnPlay.disabled = true;
+            btnPass.disabled = true;
+        }
     }
-}});
-
-btnExchange.addEventListener('click', () => {
-    // On réutilise la sélection de cartes existante
-    if (selectedCards.size === 0) {
-        alert("Sélectionnez les cartes à rendre !");
-        return;
-    }
-    
-    // On envoie un événement différent
-    const cardsArray = Array.from(selectedCards);
-    socket.emit('give_cards_back', { cards: cardsArray });
 });
 
-// --- C. Fonctions d'affichage ---
-
-function renderHand(cardsCodes, playableMask, isMyTurn) {
+function renderHand(cardsCodes, playableMask, isMyTurn, isExchange) {
     myHandDiv.innerHTML = ""; 
     selectedCards.clear();    
 
@@ -215,55 +142,45 @@ function renderHand(cardsCodes, playableMask, isMyTurn) {
         img.src = `assets/${getCardFileName(code)}`;
         img.className = 'card';
         
-        // --- LOGIQUE D'AFFICHAGE CONDITIONNEL ---
-        
-        // On grise SEULEMENT si :
-        // 1. C'est mon tour (isMyTurn est true)
-        // 2. Le masque existe
-        // 3. La carte est marquée "False" (injouable) dans le masque
-        const shouldDisable = isMyTurn && playableMask && playableMask[index] === false;
+        // Logique de grisage (Disabled)
+        let shouldDisable = false;
+        if (!isExchange) {
+            shouldDisable = !isMyTurn || (playableMask && playableMask[index] === false);
+        }
 
         if (shouldDisable) {
             img.classList.add('disabled');
         } else {
-            // Si la carte n'est pas disabled, on peut cliquer dessus
             img.addEventListener('click', () => toggleCardSelection(img, code));
         }
-        
         myHandDiv.appendChild(img);
     });
 }
 
 function renderTable(cardsCodes) {
-    tableArea.innerHTML = ""; // On efface la table
+    tableArea.innerHTML = "";
     
-    if (cardsCodes.length === 0) return; // Si table vide, on ne fait rien
+    if (cardsCodes.length === 0) {
+        tableArea.innerHTML = '<div class="empty-table-placeholder">Table vide</div>';
+        return;
+    }
 
-    // Création d'un conteneur pour centrer les cartes
     const cluster = document.createElement('div');
     cluster.style.display = 'flex';
     cluster.style.justifyContent = 'center';
-    cluster.style.gap = '10px'; // Espace entre les cartes posées
-
+    
     cardsCodes.forEach(code => {
         const img = document.createElement('img');
         img.src = `assets/${getCardFileName(code)}`;
-        // Style spécifique pour les cartes sur la table (plus petites, pas de pointeur)
-        img.style.width = '90px'; 
-        img.style.height = 'auto';
-        img.style.borderRadius = '5px';
-        img.style.boxShadow = '0 4px 8px rgba(0,0,0,0.3)';
-        
+        img.className = 'card'; 
+        // Note: Le CSS '#table-area .card' gère le style spécifique (pas d'anim, plus gros)
         cluster.appendChild(img);
     });
 
     tableArea.appendChild(cluster);
 }
 
-// --- D. Gestion des interactions ---
-
 function toggleCardSelection(imgElement, code) {
-    // Bascule la classe CSS "selected" et ajoute/retire du Set
     if (imgElement.classList.contains('selected')) {
         imgElement.classList.remove('selected');
         selectedCards.delete(code);
@@ -273,29 +190,23 @@ function toggleCardSelection(imgElement, code) {
     }
 }
 
-// Bouton JOUER
+// Events Buttons
 btnPlay.addEventListener('click', () => {
-    if (selectedCards.size === 0) {
-        alert("Vous devez sélectionner au moins une carte !");
-        return;
-    }
-    // Convertit le Set en tableau pour l'envoi JSON
-    const cardsArray = Array.from(selectedCards);
-    socket.emit('play_cards', { cards: cardsArray });
+    if (selectedCards.size === 0) return alert("Sélectionnez au moins une carte !");
+    socket.emit('play_cards', { cards: Array.from(selectedCards) });
 });
 
-// Bouton PASSER
 btnPass.addEventListener('click', () => {
-    // Passer revient à jouer une liste vide
     socket.emit('play_cards', { cards: [] });
 });
 
-// Gestion des erreurs/notifications
+btnExchange.addEventListener('click', () => {
+    if (selectedCards.size === 0) return alert("Sélectionnez les cartes à rendre !");
+    socket.emit('give_cards_back', { cards: Array.from(selectedCards) });
+});
+
 socket.on('notification', (data) => {
-    // Affiche une alerte ou log en console
-    if(data.message.includes("Erreur")) {
-        alert(data.message); // Alerte pour les erreurs de règles (ex: carte trop faible)
-    } else {
-        console.log("Info:", data.message);
-    }
+    console.log("Notif:", data.message);
+    if(data.message.includes("Erreur")) alert(data.message);
+    // Ici on pourrait ajouter un vrai système de Toast/Popup moderne
 });

@@ -96,36 +96,47 @@ class Game:
         self.players.append(player)
 
     def start_game(self):
-        """Lance une partie (ou une nouvelle manche)."""
-        # 1. On mélange et distribue
+        """Lance une nouvelle manche avec gestion des rôles persistants."""
+        self.deck = Deck()
         self.deck.shuffle()
         hands = self.deck.deal(len(self.players))
         
-        # Reset des états de jeu
+        # IMPORTANT : On ne reset PAS self.players (pour garder les rôles)
+        
+        # Reset de la table
         self.current_trick = []
         self.trick_owner = None
         self.rank_counter = 0
         self.forced_rank_active = False
-        self.winners = [] # On vide le classement de la manche précédente
+        
+        # On vide la liste des gagnants pour la NOUVELLE manche
+        self.winners = [] 
 
-        # 2. Distribution
+        # Distribution
         for i, player in enumerate(self.players):
             player.hand = []
             player.has_finished = False
             player.add_cards(hands[i])
 
-        # 3. Gestion des Échanges (S'il y a des rôles définis)
-        # On vérifie si un Président existe (donc pas la toute première partie)
+        # Gestion des échanges
+        # On regarde les rôles ACTUELS (calculés à la fin de la partie d'avant)
         has_roles = any(p.role.startswith("Président") for p in self.players)
         
         if has_roles:
-            self.state = "EXCHANGE" # Nouvelle variable d'état
-            self.pending_exchanges = {} # Pour stocker qui doit rendre des cartes à qui
-            self._apply_forced_exchanges()
+            print("Début phase échange...")
+            self.state = "EXCHANGE"
+            self.pending_exchanges = {}
+            self._apply_forced_exchanges() # TdC donne ses cartes au Président
         else:
             self.state = "PLAYING"
-            # Si pas de rôles, c'est le joueur 0 qui commence (ou aléatoire)
-            self.current_player_index = 0
+            # Si pas de rôle (1ère partie), joueur 0 commence ou TdC commence
+            # Règle usuelle : le TdC de la partie d'avant commence.
+            # On cherche le TdC
+            tdc = next((p for p in self.players if "Trou du Cul" in p.role), None)
+            if tdc:
+                self.current_player_index = self.players.index(tdc)
+            else:
+                self.current_player_index = 0
 
     def _apply_forced_exchanges(self):
         """

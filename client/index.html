@@ -3,57 +3,67 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Jeu du Président</title>
+    <title>Le Président Online</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles.css">
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
 </head>
 <body>
 
-    <div id="login-screen">
-        <h1>Le Président</h1>
-        <input type="text" id="username" placeholder="Votre pseudo" autofocus>
-        <button id="btn-join">Entrer dans le salon</button>
-    </div>
-
-    <div id="lobby-screen" class="hidden">
-        <h2>Salle d'attente</h2>
-        <p>Joueurs connectés :</p>
-        <ul id="players-list">
-            </ul>
-        <div id="lobby-controls">
-            <p id="lobby-status">En attente de joueurs...</p>
-            <button id="btn-start-game" disabled>Lancer la partie (Min 2 joueurs)</button>
-        </div>
-    </div>
-
-    <div id="game-board" class="hidden">
-        <div id="info-bar">
-             <span id="status-msg">Partie en cours</span>
-        </div>
-        </div>
+    <div class="app-container">
         
-        <div id="info-bar">
-            <span id="status-msg">En attente d'autres joueurs...</span>
+        <div id="login-screen" class="glass-panel">
+            <h1>👑 Le Président</h1>
+            <p class="subtitle">Entrez votre pseudo pour rejoindre la table</p>
+            <div class="input-group">
+                <input type="text" id="username" placeholder="Pseudo..." autofocus autocomplete="off">
+                <button id="btn-join" class="btn-primary">REJOINDRE</button>
+            </div>
         </div>
 
-        <div id="opponents-area">
-            <div class="opponent">Adversaires connectés</div>
+        <div id="lobby-screen" class="glass-panel hidden">
+            <h2>⏳ Salle d'Attente</h2>
+            <div class="lobby-content">
+                <div class="player-count">Joueurs connectés : <span id="player-count-num">0</span></div>
+                <ul id="players-list">
+                    </ul>
+            </div>
+            <p id="lobby-status">En attente...</p>
+            <button id="btn-start-game" class="btn-gold" disabled>LANCER LA PARTIE</button>
         </div>
 
-        <div id="table-area">
-            <div class="card-slot">
+        <div id="game-board" class="hidden">
+            
+            <div class="top-bar">
+                <div class="role-badge" id="my-role-display">Neutre</div>
+                <div class="game-info">
+                    <span id="status-msg">En attente...</span>
                 </div>
-        </div>
-
-        <div id="my-hand">
+                <div class="room-code">Table #1</div>
             </div>
 
-        <div id="controls">
-            <button id="btn-play">JOUER SÉLECTION</button>
-            <button id="btn-pass" class="secondary">PASSER</button>
-            <button id="btn-exchange" class="hidden" style="background-color: #ff5722; color: white;">RENDRE CES CARTES</button>
+            <div id="table-area">
+                <div class="empty-table-placeholder">La table est vide</div>
+                </div>
+
+            <div class="bottom-area">
+                
+                <div id="exchange-area" class="hidden">
+                    <button id="btn-exchange" class="btn-danger pulse">RENDRE LES CARTES</button>
+                </div>
+
+                <div id="controls">
+                    <button id="btn-pass" class="btn-secondary">PASSER</button>
+                    <button id="btn-play" class="btn-primary">JOUER</button>
+                </div>
+
+                <div id="my-hand">
+                    </div>
+            </div>
         </div>
     </div>
+
+    <div id="toast-container"></div>
 
     <script src="main.js"></script>
 </body>

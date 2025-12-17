@@ -123,7 +123,16 @@ def handle_start_game(sid):
     sio.emit('game_started', {})
     broadcast_game_state()
 
-@sio.on('play_cards')
+def start_new_round():
+    """Fonction appelée après le délai pour relancer"""
+    print("⏳ Lancement de la nouvelle manche...")
+    game.start_game()
+    
+    # On prévient tout le monde que ça recommence (et on affiche l'interface d'échange si besoin)
+    sio.emit('notification', {'message': "Nouvelle manche ! Place aux échanges !"})
+    broadcast_game_state()
+
+
 @sio.on('play_cards')
 def handle_play(sid, data):
     player = sid_to_player.get(sid)
@@ -147,17 +156,24 @@ def handle_play(sid, data):
         success, msg = game.play_move(p_index, cards_obj)
 
     if success:
-        # Si le message contient "COUPE" ou "CARRÉ", on fait une notif spéciale
-        if "COUPE" in msg or "CARRÉ" in msg:
-            # CORRECTION ICI : On retire ", broadcast=True"
-            # sio.emit sans 'to=' envoie automatiquement à tout le monde
-            sio.emit('notification', {'message': f"⚡ {player.name} A COUPÉ LE PLI ! ⚡"})
-        else:
-            print(f"{player.name} a joué : {cards_codes if cards_codes else 'PASSE'}")
+        # Si le message contient "Manche terminée", c'est que tout le monde a fini
+        if "Manche terminée" in msg:
+            sio.emit('notification', {'message': f"🏆 {msg} - Nouvelle partie dans 5 secondes..."})
+            broadcast_game_state()
             
+            # --- AUTOMATISATION DU RELANCE ---
+            # On attend 5 secondes, puis on lance start_new_round
+            eventlet.spawn_after(5, start_new_round)
+            return # On sort pour ne pas refaire broadcast tout de suite
+
+        # Si ce n'est pas fini, on notifie juste la coupe ou le coup
+        elif "COUPE" in msg or "CARRÉ" in msg:
+             sio.emit('notification', {'message': f"⚡ {player.name} A COUPÉ LE PLI ! ⚡"})
+        
+        # On diffuse l'état
         broadcast_game_state()
+        
     else:
-        # Ici on garde 'to=sid' car c'est une erreur pour un seul joueur
         sio.emit('notification', {'message': f"Erreur: {msg}"}, to=sid)
 
 if __name__ == '__main__':
