@@ -1,4 +1,5 @@
-const socket = io('http://localhost:5000');
+// const socket = io('http://localhost:5000');
+const socket = io('https://president-ikcm.onrender.com');
 
 // DOM Elements
 const loginScreen = document.getElementById('login-screen');
