@@ -275,7 +275,18 @@ function renderTable(cardsCodes, ghostCards = null) {
 
     // 3. Si ce n'est pas un nettoyage (c'est un nouveau coup ou une table déjà vide)
     // On annule tout nettoyage en attente pour afficher les nouvelles cartes immédiatement
+    // 3. Si ce n'est pas un nettoyage (c'est un nouveau coup ou une table déjà vide)
+
+    // Si une animation est en cours (tableClearTimeout actif)
     if (tableClearTimeout) {
+        // Si la nouvelle table est vide, on laisse l'animation se terminer
+        // (C'est juste une mise à jour de changement de joueur par exemple)
+        if (cardsCodes.length === 0) {
+            return;
+        }
+
+        // Par contre, si de nouvelles cartes sont jouées, on coupe l'animation
+        // pour afficher les nouvelles tout de suite.
         clearTimeout(tableClearTimeout);
         tableClearTimeout = null;
     }
