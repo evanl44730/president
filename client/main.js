@@ -157,7 +157,45 @@ function renderHand(cardsCodes, playableMask, isMyTurn, isExchange) {
     });
 }
 
+let tableClearTimeout = null;
+let previousTableSize = 0; // Pour savoir si la table était pleine avant
+
 function renderTable(cardsCodes) {
+    // 1. Détection : Est-ce qu'on vient de nettoyer le pli ?
+    // Condition : La table devient vide (0) ALORS QU'elle avait des cartes avant (>0)
+    const isClearingTrick = (cardsCodes.length === 0 && previousTableSize > 0);
+    previousTableSize = cardsCodes.length; // Mise à jour pour la prochaine fois
+
+    // 2. Si on nettoie le pli -> Animation
+    if (isClearingTrick) {
+        const images = tableArea.querySelectorAll('img');
+        
+        // On applique la classe d'animation à toutes les cartes actuelles
+        images.forEach(img => {
+            img.classList.add('clearing-animation');
+        });
+
+        // On attend la fin de l'animation (500ms définie dans le CSS) avant de vider le DOM
+        // Si un nouveau paquet arrive entre temps (ex: jeu très rapide), on annulera ce timeout
+        if (tableClearTimeout) clearTimeout(tableClearTimeout);
+        
+        tableClearTimeout = setTimeout(() => {
+            tableArea.innerHTML = ""; // Vrai nettoyage du DOM
+            // On peut rajouter un placeholder vide si on veut
+            tableArea.innerHTML = '<div class="empty-table-placeholder">Table vide</div>';
+        }, 500); // Durée synchro avec le CSS
+
+        return; // On arrête là, on ne redessine pas "rien" tout de suite
+    }
+
+    // 3. Si ce n'est pas un nettoyage (c'est un nouveau coup ou une table déjà vide)
+    // On annule tout nettoyage en attente pour afficher les nouvelles cartes immédiatement
+    if (tableClearTimeout) {
+        clearTimeout(tableClearTimeout);
+        tableClearTimeout = null;
+    }
+
+    // --- Rendu Standard (Code existant) ---
     tableArea.innerHTML = "";
     
     if (cardsCodes.length === 0) {
@@ -173,7 +211,6 @@ function renderTable(cardsCodes) {
         const img = document.createElement('img');
         img.src = `assets/${getCardFileName(code)}`;
         img.className = 'card'; 
-        // Note: Le CSS '#table-area .card' gère le style spécifique (pas d'anim, plus gros)
         cluster.appendChild(img);
     });
 

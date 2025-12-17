@@ -247,3 +247,19 @@ button:disabled { background: #555; color: #888; cursor: not-allowed; box-shadow
 }
 
 @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+
+@keyframes flyAway {
+    0% {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+    100% {
+        opacity: 0;
+        transform: translateY(-60px) scale(0.8); /* Monte et rétrécit */
+    }
+}
+
+.clearing-animation {
+    animation: flyAway 0.5s ease-in forwards; /* 'forwards' garde l'état final (invisible) */
+    pointer-events: none; /* On ne peut plus cliquer dessus */
+}

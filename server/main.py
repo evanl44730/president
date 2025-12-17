@@ -2,8 +2,9 @@ import eventlet
 import socketio
 from game_engine import Game, Card
 from player import Player
+import os
 
-sio = socketio.Server(cors_allowed_origins='*')
+sio = socketio.Server(cors_allowed_origins='*') 
 app = socketio.WSGIApp(sio)
 
 game = Game()
@@ -177,4 +178,10 @@ def handle_play(sid, data):
         sio.emit('notification', {'message': f"Erreur: {msg}"}, to=sid)
 
 if __name__ == '__main__':
-    eventlet.wsgi.server(eventlet.listen(('', 5000)), app)
+    # 2. MODIFICATION PORT : Render nous donne un port via l'environnement
+    # Si 'PORT' n'existe pas (en local), on utilise 5000
+    port = int(os.environ.get('PORT', 5000))
+    
+    print(f"Server listening on port {port}")
+    # On écoute sur '0.0.0.0' pour être accessible de l'extérieur
+    eventlet.wsgi.server(eventlet.listen(('0.0.0.0', port)), app)
