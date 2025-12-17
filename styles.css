@@ -255,6 +255,13 @@ button:disabled {
     filter: grayscale(0) drop-shadow(0 0 5px var(--gold-color));
 }
 
+.card-count {
+    font-size: 0.8rem;
+    color: var(--gold-color);
+    margin-top: 5px;
+    font-weight: bold;
+}
+
 /* TABLE AREA */
 #table-area {
     flex-grow: 1;

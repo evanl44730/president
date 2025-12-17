@@ -120,12 +120,9 @@ socket.on('game_state', (state) => {
     let activePlayerName = state.current_player;
     if (state.is_my_turn) activePlayerName = myUsername; // Fallback pour moi-même
 
-    renderOpponents(allPlayers, activePlayerName);
-
     // Status text update
     statusMsg.innerHTML = state.message;
 
-    // Role update
     if (state.my_role) {
         myRoleDisplay.innerText = state.my_role;
         // Couleur dynamique du badge selon le rôle
@@ -133,6 +130,12 @@ socket.on('game_state', (state) => {
         else if (state.my_role.includes("Trou")) myRoleDisplay.style.borderColor = "#8c7ae6";
         else myRoleDisplay.style.borderColor = "#fff";
     }
+
+    // Récupération des comptes de cartes (si le serveur les envoie)
+    // On suppose que state.cards_counts est un objet { "pseudo": nb_cartes }
+    const cardsCounts = state.cards_counts || {};
+
+    renderOpponents(allPlayers, activePlayerName, cardsCounts);
 
     // --- LOGIQUE BOUTONS ---
     if (state.is_exchange) {
@@ -340,7 +343,7 @@ btnExchange.addEventListener('click', () => {
     socket.emit('give_cards_back', { cards: Array.from(selectedCards) });
 });
 
-function renderOpponents(players, currentPlayerName) {
+function renderOpponents(players, currentPlayerName, cardsCounts = {}) {
     // Si la liste est vide (pas encore reçue), on ne fait rien
     if (!players || players.length === 0) return;
 
@@ -350,7 +353,7 @@ function renderOpponents(players, currentPlayerName) {
         // Optionnel : ne pas s'afficher soi-même ? 
         // L'utilisateur a dit "ajoute les joueurs", souvent on veut aussi voir quand c'est son tour
         // Mais on a déjà "my-turn-active" sur l'écran. 
-        // Affichons tout le monde pour la clarté.
+        // Si on veut aussi voir son propre compteur dans la liste:
 
         const div = document.createElement('div');
         div.className = 'opponent-profile';
@@ -360,9 +363,14 @@ function renderOpponents(players, currentPlayerName) {
             div.classList.add('active-turn');
         }
 
+        // Compte de cartes
+        const count = (cardsCounts[name] !== undefined) ? cardsCounts[name] : '?';
+        const cardText = (count === 1) ? '1 carte' : `${count} cartes`;
+
         div.innerHTML = `
             <div class="opponent-avatar">👤</div>
             <div class="opponent-name">${name}</div>
+            <div class="card-count">${cardText}</div>
         `;
         opponentsContainer.appendChild(div);
     });
