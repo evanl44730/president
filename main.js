@@ -21,7 +21,7 @@ const btnPass = document.getElementById('btn-pass');
 const btnExchange = document.getElementById('btn-exchange');
 const exchangeArea = document.getElementById('exchange-area');
 
-let selectedCards = new Set(); 
+let selectedCards = new Set();
 
 // --- LOGIN ---
 btnJoin.addEventListener('click', () => {
@@ -33,8 +33,8 @@ btnJoin.addEventListener('click', () => {
     }
 });
 // Trigger Login on Enter key
-usernameInput.addEventListener("keypress", function(event) {
-  if (event.key === "Enter") btnJoin.click();
+usernameInput.addEventListener("keypress", function (event) {
+    if (event.key === "Enter") btnJoin.click();
 });
 
 // --- LOBBY ---
@@ -42,7 +42,7 @@ socket.on('update_player_list', (data) => {
     const players = data.players;
     playersListUl.innerHTML = "";
     playerCountSpan.innerText = players.length;
-    
+
     players.forEach(name => {
         const li = document.createElement('li');
         li.innerText = name;
@@ -72,12 +72,12 @@ socket.on('game_started', () => {
 
 function getCardFileName(cardCode) {
     let rankCode, suitCode;
-    if (cardCode.length === 3) { rankCode = cardCode.slice(0, 2); suitCode = cardCode.slice(2); } 
+    if (cardCode.length === 3) { rankCode = cardCode.slice(0, 2); suitCode = cardCode.slice(2); }
     else { rankCode = cardCode.slice(0, 1); suitCode = cardCode.slice(1); }
 
     const rankMap = { 'J': 'jack', 'Q': 'queen', 'K': 'king', 'A': 'ace' };
     const suitMap = { 'H': 'hearts', 'D': 'diamonds', 'C': 'clubs', 'S': 'spades' };
-    const rankName = rankMap[rankCode] || rankCode; 
+    const rankName = rankMap[rankCode] || rankCode;
     const suitName = suitMap[suitCode];
     return `${rankName}_of_${suitName}.png`;
 }
@@ -88,16 +88,16 @@ socket.on('game_state', (state) => {
     // Update UI Elements
     renderHand(state.hand, state.playable_mask, state.is_my_turn, state.is_exchange);
     renderTable(state.table);
-    
+
     // Status text update
     statusMsg.innerHTML = state.message;
-    
+
     // Role update
-    if(state.my_role) {
+    if (state.my_role) {
         myRoleDisplay.innerText = state.my_role;
         // Couleur dynamique du badge selon le rôle
-        if(state.my_role.includes("Président")) myRoleDisplay.style.borderColor = "#f1c40f";
-        else if(state.my_role.includes("Trou")) myRoleDisplay.style.borderColor = "#8c7ae6";
+        if (state.my_role.includes("Président")) myRoleDisplay.style.borderColor = "#f1c40f";
+        else if (state.my_role.includes("Trou")) myRoleDisplay.style.borderColor = "#8c7ae6";
         else myRoleDisplay.style.borderColor = "#fff";
     }
 
@@ -109,36 +109,42 @@ socket.on('game_state', (state) => {
         if (state.exchange_info) {
             btnExchange.classList.remove('hidden');
             btnExchange.innerText = `RENDRE ${state.exchange_info.count} CARTE(S)`;
-            statusMsg.style.color = "#ff4757"; 
+            statusMsg.style.color = "#ff4757";
         } else { /* ... */ }
 
     } else {
         // Mode Jeu
         btnPlay.parentElement.classList.remove('hidden');
         exchangeArea.classList.add('hidden');
-        
+
         // Est-ce que j'ai au moins une carte jouable dans ma main ?
         // (Le masque contient au moins un 'true')
         const hasPlayableCards = state.playable_mask && state.playable_mask.includes(true);
 
         if (state.is_my_turn) {
-            statusMsg.style.color = "#f1c40f"; 
+            statusMsg.style.color = "#f1c40f";
             statusMsg.style.textShadow = "0 0 10px rgba(241, 196, 15, 0.5)";
-            
+
+            // Ajout de l'effet visuel
+            document.querySelector('.app-container').classList.add('my-turn-active');
+
             btnPlay.disabled = false;
             btnPass.disabled = false;
-            
+
         } else {
             // CE N'EST PAS MON TOUR
             statusMsg.style.color = "#fff";
             statusMsg.style.textShadow = "none";
-            
+
+            // Retrait de l'effet visuel
+            document.querySelector('.app-container').classList.remove('my-turn-active');
+
             // Le bouton PASSER est désactivé (on ne passe pas hors tour)
             btnPass.disabled = true;
 
             // NOUVEAU : Le bouton JOUER est actif SI j'ai une coupe possible (hasPlayableCards)
             if (hasPlayableCards) {
-                btnPlay.disabled = false; 
+                btnPlay.disabled = false;
                 btnPlay.innerText = "COUPER !"; // Petit feedback visuel sympa
                 btnPlay.style.background = "linear-gradient(45deg, #ff5722, #f44336)"; // Rouge feu
             } else {
@@ -147,17 +153,18 @@ socket.on('game_state', (state) => {
                 btnPlay.style.background = ""; // Retour style normal
             }
         }
-    }});
+    }
+});
 
 function renderHand(cardsCodes, playableMask, isMyTurn, isExchange) {
-    myHandDiv.innerHTML = ""; 
-    selectedCards.clear();    
+    myHandDiv.innerHTML = "";
+    selectedCards.clear();
 
     cardsCodes.forEach((code, index) => {
         const img = document.createElement('img');
         img.src = `assets/${getCardFileName(code)}`;
         img.className = 'card';
-        
+
         let shouldDisable = false;
 
         if (isExchange) {
@@ -168,7 +175,7 @@ function renderHand(cardsCodes, playableMask, isMyTurn, isExchange) {
             // On fait confiance au masque du serveur (playableMask).
             // Le serveur a déjà mis 'false' partout si ce n'est pas mon tour,
             // SAUF pour les cartes qui permettent de couper.
-            
+
             if (playableMask && playableMask[index] === false) {
                 shouldDisable = true;
             }
@@ -195,7 +202,7 @@ function renderTable(cardsCodes) {
     // 2. Si on nettoie le pli -> Animation
     if (isClearingTrick) {
         const images = tableArea.querySelectorAll('img');
-        
+
         // On applique la classe d'animation à toutes les cartes actuelles
         images.forEach(img => {
             img.classList.add('clearing-animation');
@@ -204,12 +211,12 @@ function renderTable(cardsCodes) {
         // On attend la fin de l'animation (500ms définie dans le CSS) avant de vider le DOM
         // Si un nouveau paquet arrive entre temps (ex: jeu très rapide), on annulera ce timeout
         if (tableClearTimeout) clearTimeout(tableClearTimeout);
-        
+
         tableClearTimeout = setTimeout(() => {
             tableArea.innerHTML = ""; // Vrai nettoyage du DOM
             // On peut rajouter un placeholder vide si on veut
             tableArea.innerHTML = '<div class="empty-table-placeholder">Table vide</div>';
-        }, 500); // Durée synchro avec le CSS
+        }, 2000); // Durée synchro avec le CSS (1.5s délai + 0.5s anim)
 
         return; // On arrête là, on ne redessine pas "rien" tout de suite
     }
@@ -223,7 +230,7 @@ function renderTable(cardsCodes) {
 
     // --- Rendu Standard (Code existant) ---
     tableArea.innerHTML = "";
-    
+
     if (cardsCodes.length === 0) {
         tableArea.innerHTML = '<div class="empty-table-placeholder">Table vide</div>';
         return;
@@ -232,11 +239,11 @@ function renderTable(cardsCodes) {
     const cluster = document.createElement('div');
     cluster.style.display = 'flex';
     cluster.style.justifyContent = 'center';
-    
+
     cardsCodes.forEach(code => {
         const img = document.createElement('img');
         img.src = `assets/${getCardFileName(code)}`;
-        img.className = 'card'; 
+        img.className = 'card';
         cluster.appendChild(img);
     });
 
@@ -270,6 +277,6 @@ btnExchange.addEventListener('click', () => {
 
 socket.on('notification', (data) => {
     console.log("Notif:", data.message);
-    if(data.message.includes("Erreur")) alert(data.message);
+    if (data.message.includes("Erreur")) alert(data.message);
     // Ici on pourrait ajouter un vrai système de Toast/Popup moderne
 });
