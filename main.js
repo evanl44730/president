@@ -116,13 +116,40 @@ socket.on('game_state', (state) => {
     renderTable(state.table, ghostCards);
 
     // Rendu des adversaires et surbrillance du tour
-    // On essaie de deviner à qui c'est le tour via state.current_player (s'il existe)
-    let activePlayerName = state.current_player;
-    if (state.is_my_turn) activePlayerName = myUsername; // Fallback pour moi-même
+    // Tentative de récupération robuste du joueur actuel
+    let activePlayerName = state.current_player || state.currentPlayer || state.turn;
+
+    if (state.is_my_turn) {
+        activePlayerName = myUsername;
+    }
+
+    // Récupération des comptes de cartes (tâtonnement des propriétés possibles)
+    let cardsCounts = state.cards_counts || state.card_counts || state.hand_sizes || state.handSizes || {};
+
+    // Si cardsCounts est vide mais qu'on a une liste 'players' avec des métadonnées dans l'état
+    if (Array.isArray(state.players)) {
+        state.players.forEach(p => {
+            // Support formats: {name: "Bob", count: 5} ou {name: "Bob", handSize: 5}
+            if (p.name || p.username) {
+                const pName = p.name || p.username;
+                const pCount = p.card_count !== undefined ? p.card_count :
+                    (p.hand_size !== undefined ? p.hand_size :
+                        (p.count !== undefined ? p.count : '?'));
+                cardsCounts[pName] = pCount;
+            }
+        });
+    }
+
+    // Debug: Aide pour identifier les champs si ça ne marche toujours pas
+    console.log("State keys:", Object.keys(state));
+    if (state.players) console.log("State players:", state.players);
+
+    renderOpponents(allPlayers, activePlayerName, cardsCounts);
 
     // Status text update
     statusMsg.innerHTML = state.message;
 
+    // Role update
     if (state.my_role) {
         myRoleDisplay.innerText = state.my_role;
         // Couleur dynamique du badge selon le rôle
@@ -130,12 +157,6 @@ socket.on('game_state', (state) => {
         else if (state.my_role.includes("Trou")) myRoleDisplay.style.borderColor = "#8c7ae6";
         else myRoleDisplay.style.borderColor = "#fff";
     }
-
-    // Récupération des comptes de cartes (si le serveur les envoie)
-    // On suppose que state.cards_counts est un objet { "pseudo": nb_cartes }
-    const cardsCounts = state.cards_counts || {};
-
-    renderOpponents(allPlayers, activePlayerName, cardsCounts);
 
     // --- LOGIQUE BOUTONS ---
     if (state.is_exchange) {
